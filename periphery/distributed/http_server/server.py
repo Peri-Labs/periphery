@@ -14,11 +14,11 @@ class QueueItem(BaseModel):
     value: str
 
 class Server:
-    def __init__(self, task_manager):
+    def __init__(self, node):
         # Initialize the FastAPI app and the queue
         self.app = FastAPI()
-        
-        self.task_manager = task_manager
+        self.node = node
+        self.task_manager = self.node.task_manager
 
         # Register routes
         self.add_routes()
@@ -40,14 +40,24 @@ class Server:
             # Return the current size of the queue
             return {"queue_size": self.queue.qsize()}
 
+        @self.app.post("/model_assign")
+        async def assign_model(background_tasks: BackgroundTasks, model_file: UploadFile = File(...)):
+            if not file.filename.endswith(".onnx"):
+                raise HTTPException(status_code=400, detail="Only .onnx files are allowed.")
+
+            try:
+                with open(self.task_manager.model.path, "wb") as f:
+                    f.write(await model_file.read())
+                return {"message": f"ONNX model saved as {file.filename}"}
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Request failed (Internal Server Error)")
+
+
+
         @self.app.post("/submit_input/{infer_id}")
         async def submit_input(background_tasks: BackgroundTasks, infer_id: int, file: UploadFile = File(...)):
             try:
                 contents = await file.read()
-                #data = pickle.loads(contents)
-
-                #if not isinstance(data, dict) or not all(isinstance(v, np.ndarray) for v in data.values()):
-                #    raise HTTPException(status_code=400, detail="Uploaded file is not a dictionary of NumPy arrays.")
 
                 flo = io.BytesIO(contents)
 
