@@ -1,2 +1,1 @@
-# peri-ONNX
 # periphery
