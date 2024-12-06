@@ -1,6 +1,8 @@
 from io import BytesIO
 import numpy as np
 
+import requests
+
 class TaskManager:
     def __init__(self, model):
         self.model = model
@@ -8,6 +10,9 @@ class TaskManager:
         self.outputs = {}
 
         self.input_names = [x.name for x in self.model.get_inputs()]
+
+        self.children = []
+        self.child_output_mappings = {}
 
     def submit_input(self, input_tensors, infer_id):
         if infer_id in input_tensors:
@@ -23,6 +28,7 @@ class TaskManager:
                     return
 
             self.outputs[infer_id] = self.model.infer(self.input_requests[infer_id])
+            self.send_to_children(infer_id, self.children, self.child_output_mappings)
             to_remove.add(infer_id)
 
         for infer_id in to_remove:
@@ -34,3 +40,18 @@ class TaskManager:
         buffer.seek(0)
 
         return buffer, f"output_{infer_id}.npz"
+
+    def send_to_children(self, infer_id, children, child_output_mappings):
+        for child, outputs in child_output_mappings.items():
+            url = f"{children[child]}/submit_input/{infer_id}"
+            file = self.get_selected_buffer(infer_id, outputs, child)
+            requests.post(url, files={"file": file})
+    
+    def get_selected_buffer(self, input_id, output_names, output_id):
+        buffer = BytesIO()
+        selected_output = {k: v for k,v in self.outputs[infer_id].items() if k in output_names}
+
+        np.savez(buffer, **selected_output)
+        buffer.seek(0)
+
+        return buffer, f"output_{infer_id}_{output_id}.npz"

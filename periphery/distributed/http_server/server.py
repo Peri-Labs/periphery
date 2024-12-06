@@ -1,6 +1,6 @@
 from fastapi import FastAPI, BackgroundTasks, UploadFile, File, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, List
 from queue import Queue
 from typing import Optional
 import uvicorn
@@ -52,7 +52,10 @@ class Server:
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Request failed (Internal Server Error)")
 
-
+        @self.app.post("/child_assign")
+        async def assign_child(outputs: List, host_ip: str):
+            self.task_manager.children.append(host_ip)
+            self.task_manager.child_output_mappings[host_ip] += outputs
 
         @self.app.post("/submit_input/{infer_id}")
         async def submit_input(background_tasks: BackgroundTasks, infer_id: int, file: UploadFile = File(...)):
