@@ -1,9 +1,18 @@
 from onnx import helper
 import onnx
 
-#from periphery.model.model import PeriModel
+from periphery.model.model import PeriModel
+from periphery.utils.dag import dag
 
-def get_partitions(model, nodes, n_shards): 
+def get_partitions(model, n_shards): 
+    """
+    Find a partition of the model layers into n_shards
+
+    Parameters:
+    - model: The ONNX ModelProto to shard
+    - n_shards: Number of shards to split the model into.
+    """
+    nodes = model.graph.node
     total_nodes = len(nodes)
 
     shard_size = total_nodes // n_shards
@@ -18,6 +27,42 @@ def get_partitions(model, nodes, n_shards):
         partitions[-1] += nodes[(total_nodes-shortfall):]
 
     return partitions
+
+def infer_topology(shard_inputs, shard_outputs):
+    """
+    Return a DAG representing the connections between shards
+
+    Parameters:
+    - shard_inputs: A list of inputs into each submodel
+    - shard_outputs: A list of outputs into each submodel
+    """
+    graph = dag.DirectedGraph()
+
+    n_shards = len(shard_inputs)
+
+    nodes = [dag.Node() for i in range(n_shards)]
+
+    graph.add_nodes(nodes)
+    
+    input_mapping = {}
+    output_mapping = {}
+
+    for shard_no, input_names in shard_inputs.items():
+        for input_name in input_names:
+            input_mapping[input_name] = shard_no
+
+    for shard_no, output_names in shard_outputs.items():
+        for output_name in output_names:
+            output_mapping[output_name] = shard_no
+
+    for shard_no, shard in enumerate(shard_inputs):
+        for output in shard_outputs[shard]:
+            if output in input_mapping:
+                next_node = nodes[input_mapping[output]]
+                nodes[shard_no].add_connection(output, next_node)
+    
+    return graph
+
 
 def shard_onnx_model(peri_model, n_shards, output_paths):
     """
@@ -40,7 +85,10 @@ def shard_onnx_model(peri_model, n_shards, output_paths):
 
     initializers = {init.name: init for init in graph.initializer}
 
-    partitions = get_partitions(model, nodes, n_shards)
+    partitions = get_partitions(model, n_shards)
+
+    all_inputs = []
+    all_outputs = []
 
     for shard_no, partition in enumerate(partitions):
         shard_inputs = set()
@@ -56,6 +104,9 @@ def shard_onnx_model(peri_model, n_shards, output_paths):
         shard_inputs = shard_inputs.difference(intermediates)
         shard_outputs = shard_outputs.difference(intermediates)
         shard_inputs = shard_inputs.difference(shard_initializers)
+
+        all_inputs.append(shard_inputs)
+        all_outputs.append(shard_outputs)
 
         shard_inputs = [helper.make_tensor_value_info(x, onnx.TensorProto.FLOAT, None) for x in shard_inputs]
         shard_outputs = [helper.make_tensor_value_info(x, onnx.TensorProto.FLOAT, None) for x in shard_outputs]
@@ -77,3 +128,5 @@ def shard_onnx_model(peri_model, n_shards, output_paths):
 
         # Save the sharded model
         onnx.save(shard_model, output_paths[shard_no])
+
+    return infer_topology(all_inputs, all_outputs)
