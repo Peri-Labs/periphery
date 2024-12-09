@@ -175,8 +175,3 @@ class Server:
     def run(self, host: str = "127.0.0.1", port: int = 8000):
         # Start the FastAPI server
         uvicorn.run(self.app, host=host, port=port)
-
-# Example usage
-if __name__ == "__main__":
-    server = Server(task_manager.TaskManager(None))
-    server.run()
