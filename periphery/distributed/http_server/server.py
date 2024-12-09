@@ -1,8 +1,6 @@
-from fastapi import FastAPI, BackgroundTasks, UploadFile, File, HTTPException
+from fastapi import FastAPI, BackgroundTasks, UploadFile, File, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, List
-from queue import Queue
-from typing import Optional
+from typing import Optional, List
 import uvicorn
 import numpy as np
 
@@ -81,32 +79,26 @@ class Server:
         async def root():
             return {"message": "Hello Peri!"}
 
-        @self.app.post("/enqueue")
-        async def enqueue_item(item: QueueItem, background_tasks: BackgroundTasks):
-            # Add an item to the queue
-            self.queue.put(item.dict())
-            background_tasks.add_task(self.process_queue)
-            return {"status": "Item added to queue", "item": item.dict()}
-
-        @self.app.get("/queue_size")
-        async def queue_size():
-            # Return the current size of the queue
-            return {"queue_size": self.queue.qsize()}
-
         @self.app.post("/model_assign")
-        async def assign_model(background_tasks: BackgroundTasks, model_file: UploadFile = File(...)):
+        async def assign_model(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
             if not file.filename.endswith(".onnx"):
+                print(f"filename: {file.filename}")
                 raise HTTPException(status_code=400, detail="Only .onnx files are allowed.")
 
             try:
                 with open(self.task_manager.model.path, "wb") as f:
-                    f.write(await model_file.read())
+                    f.write(await file.read())
                 return {"message": f"ONNX model saved as {file.filename}"}
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Request failed (Internal Server Error)")
 
         @self.app.post("/child_assign")
-        async def assign_child(outputs: List, host_ip: str):
+        async def assign_child(request: Request):
+            data = await request.json()
+
+            outputs = data.get("outputs")
+            host_ip = data.get("host_ip")
+
             self.task_manager.children.append(host_ip)
             self.task_manager.child_output_mappings[host_ip] += outputs
 
@@ -126,7 +118,7 @@ class Server:
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Request failed (Internal Server Error)")
 
-        @self.app.port("/register_node")
+        @self.app.post("/register_node")
         async def register_node(request: Request):
             data = await request.json()
             
@@ -146,7 +138,7 @@ class Server:
                         "name": x.name,
                         "shape": x.shape,
                         "type": x.type
-                    }for x in self.task_manager.model.get_outputs()]
+                    } for x in self.task_manager.model.get_inputs()]
 
         @self.app.get("/output/{infer_id}")
         async def output(infer_id: int):

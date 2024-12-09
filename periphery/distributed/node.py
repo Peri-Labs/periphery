@@ -4,6 +4,3 @@ class Node:
         self.host_port = host_port
 
         self.task_manager = task_manager
-
-    def run(self):
-        self.server.run()
