@@ -1,10 +1,14 @@
+import collections
+
 class Node:
     def __init__(self):
-        self.connections = {}
+        self.connection_labels = collections.defaultdict(set)
+        self.label_to_connection = {}
         self.connection_set = set()
 
     def add_connection(self, label, nxt):
-        self.connections[label] = nxt
+        self.connection_labels[nxt].add(label)
+        self.label_to_connection[label] = nxt
         self.connection_set.add(nxt)
 
 class DirectedGraph:

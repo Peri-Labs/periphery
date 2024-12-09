@@ -2,6 +2,7 @@ from io import BytesIO
 import numpy as np
 
 import requests
+import collections
 
 class TaskManager:
     def __init__(self, model):
@@ -12,7 +13,14 @@ class TaskManager:
         self.input_names = [x.name for x in self.model.get_inputs()]
 
         self.children = []
-        self.child_output_mappings = {}
+        self.child_output_mappings = collections.defaultdict(list)
+
+    def clear_model(self):
+        self.model = None
+
+    def clear_children(self):
+        self.children = []
+        self.child_output_mappings = collections.defaultdict(list)
 
     def submit_input(self, input_tensors, infer_id):
         if infer_id in input_tensors:

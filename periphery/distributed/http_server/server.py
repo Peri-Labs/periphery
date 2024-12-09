@@ -6,12 +6,10 @@ from typing import Optional
 import uvicorn
 import numpy as np
 
+import requests
+
 import pickle
 import io
-
-class QueueItem(BaseModel):
-    key: str
-    value: str
 
 class Server:
     def __init__(self, node):
@@ -20,8 +18,63 @@ class Server:
         self.node = node
         self.task_manager = self.node.task_manager
 
+        self.registered_nodes = []
+
         # Register routes
         self.add_routes()
+
+    def world_size(self):
+        return len(self.registered_nodes) + 1
+
+    def assign_shards(self, submodels, shard_graph):
+        if len(submodels) > self.world_size():
+            raise Exception("Too many submodels for world size.")
+        if len(submodels) == 0:
+            raise Exception("No submodels included.")
+        
+        model_stack = shard_graph.get_parent_nodes()
+        model_set = set(model_stack)
+        node_stack = [x for x in self.registered_nodes]
+
+        self.task_manager.clear_model()
+        self.task_manager.clear_children()
+
+        own_model_id = None
+        assigned_models = {}
+        assigned_nodes = {}
+
+        # assign each submodel to each node, including the master node
+        while len(model_stack) > 0:
+            model_id = model_stack.pop()
+            model_set.remove(model_id)
+            new_models = [x for x in shard_graph.nodes[model_id].connection_set if x not in model_set]
+            model_stack += new_models
+            model_set = model_set.union(set(new_models))
+            
+            if own_model_id is None:
+                own_model_id = model_id
+                self.task_manager.model = submodels[model_id]
+            else:
+                next_node = node_stack.pop()
+                assigned_models[next_node] = model_id
+                assigned_nodes[model_id] = next_node
+                
+                url = f"{next_node}/model_assign"
+                requests.post(url, files={"file": submodels[model_id].path})
+        
+        # update each node with their children, including the proper inputs
+        for connection in shard_graph.nodes[own_model_id].connection_set:
+            outputs = shard_graph.nodes[own_model_id].connection_labels[connection]
+
+            self.task_manager.children.append(assigned_nodes[connection])
+            self.task_manager.child_output_mappings[assigned_nodes[connection]] += outputs
+            
+        for node_ip, model_id in assigned_models.items():
+            for connection in shard_graph[model_id].connection_set:
+                outputs = shard_graph.nodes[model_id].connection_labels[connection]
+                url = f"{next_node}/child_assign"
+                requests.post(url, {"outputs": outputs, "host_ip": node_ip})
+
 
     def add_routes(self):
         @self.app.get("/")
@@ -72,6 +125,20 @@ class Server:
                 background_tasks.add_task(self.task_manager.check_for_completion)
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Request failed (Internal Server Error)")
+
+        @self.app.port("/register_node")
+        async def register_node(request: Request):
+            data = await request.json()
+            
+            node_address = data.get("ip")
+
+            if not node_address:
+                raise HTTPException(status_code=400, detail=f"Field 'ip' missing")
+
+            self.registered_nodes.append(node_address)
+
+            return {"message": "Node registered successfully"}
+
 
         @self.app.get("/inputs")
         async def get_inputs():
