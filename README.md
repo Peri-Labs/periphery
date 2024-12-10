@@ -12,6 +12,7 @@ Periphery is designed to support advanced workflows for model compression, distr
 
 - **`periphery/`**  
   Core libraries and utilities powering Periphery's functionality. The submodules include:  
+  *Status: In progress.*
   - **`compression/`**  
     A compression library frontend, compatible with Intel's Neural Compressor library and a custom fork tailored for specific needs.  
   - **`distributed/`**  
