@@ -22,6 +22,18 @@ Periphery is designed to support advanced workflows for model compression, distr
   - **`utils/`**  
     Utility code for graph operations, file I/O, and other common tasks.  
 
+## Example Usage
+
+Below are examples for setting up both a **master node** and a **child node** in a distributed inference setup.
+
+```bash
+# Master Node
+python main.py --master --model_path /path/to/model.onnx --num_shards 4
+
+# Child Node
+python main.py --master_ip 192.168.1.100 --master_port 29500 --ip 192.168.1.101 --port 29501
+```
+
 ## Notes
 
 - **Beta Status:**  
