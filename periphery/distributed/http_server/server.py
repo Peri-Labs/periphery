@@ -3,32 +3,49 @@ from fastapi.responses import StreamingResponse
 from typing import Optional, List
 import uvicorn
 import numpy as np
-
+import threading
 import requests
-
 import pickle
 import io
+import os
+import signal
+import psutil
 
 class Server:
-    def __init__(self, node):
+    def __init__(self, node, protocol="https"):
         # Initialize the FastAPI app and the queue
         self.app = FastAPI()
         self.node = node
         self.task_manager = self.node.task_manager
+        self.protocol = protocol
 
         self.registered_nodes = []
+        self.registration_condition = threading.Condition()
+
+        self.master_url = None
 
         # Register routes
         self.add_routes()
 
+        self.server_thread = None
+
     def world_size(self):
-        return len(self.registered_nodes) + 1
+        n_nodes = len(self.registered_nodes) + 1
+
+        return n_nodes
+
+    def wait_for_nodes(self, target_world_size):
+        while not self.world_size() < target_world_size:
+            self.registration_condition.wait()
+
 
     def assign_shards(self, submodels, shard_graph):
         if len(submodels) > self.world_size():
             raise Exception("Too many submodels for world size.")
         if len(submodels) == 0:
             raise Exception("No submodels included.")
+        
+        self.master_url = self.node.get_url()
         
         model_stack = shard_graph.get_parent_nodes()
         model_set = set(model_stack)
@@ -73,6 +90,10 @@ class Server:
                 url = f"{next_node}/child_assign"
                 requests.post(url, {"outputs": outputs, "host_ip": node_ip})
 
+    def register_self(self, master_url):
+        url = f"{master_url}/register_node"
+        self.master_url = master_url
+        requests.post(url, {"ip": self.node.get_url(self.protocol)})
 
     def add_routes(self):
         @self.app.get("/")
@@ -102,6 +123,20 @@ class Server:
             self.task_manager.children.append(host_ip)
             self.task_manager.child_output_mappings[host_ip] += outputs
 
+        @self.app.post("/register_node")
+        async def register_node(request: Request):
+            data = await request.json()
+            
+            node_address = data.get("ip")
+
+            if not node_address:
+                raise HTTPException(status_code=400, detail=f"Field 'ip' missing")
+
+            self.registered_nodes.append(node_address)
+            self.registration_condition.notify()
+
+            return {"message": "Node registered successfully"}
+
         @self.app.post("/submit_input/{infer_id}")
         async def submit_input(background_tasks: BackgroundTasks, infer_id: int, file: UploadFile = File(...)):
             try:
@@ -117,20 +152,6 @@ class Server:
                 background_tasks.add_task(self.task_manager.check_for_completion)
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Request failed (Internal Server Error)")
-
-        @self.app.post("/register_node")
-        async def register_node(request: Request):
-            data = await request.json()
-            
-            node_address = data.get("ip")
-
-            if not node_address:
-                raise HTTPException(status_code=400, detail=f"Field 'ip' missing")
-
-            self.registered_nodes.append(node_address)
-
-            return {"message": "Node registered successfully"}
-
 
         @self.app.get("/inputs")
         async def get_inputs():
@@ -161,9 +182,22 @@ class Server:
                 print(f"found exception... {str(e)}")
                 raise HTTPException(status_code=500, detail=f"Request failed (Internal Server Error)")
 
-    def process_queue(self):
-        print("processing...")
-
-    def run(self, host: str = "127.0.0.1", port: int = 8000):
+    def run(self, host, port):
         # Start the FastAPI server
-        uvicorn.run(self.app, host=host, port=port)
+        def into_server():
+            uvicorn.run(self.app, host=host, port=port)
+        self.server_thread = threading.Thread(target = into_server, daemon=True)
+        self.server_thread.start()
+
+        signal.signal(signal.SIGINT, self.stop)
+        signal.signal(signal.SIGTERM, self.stop)
+
+    def stop(self, sig=None, frame=None):
+        if self.server_thread and self.server_thread.is_alive():
+            parent_pid = os.getpid()
+            parent = psutil.Process(parent_pid)
+            for child in parent.children(recursive=True):
+                child.kill()
+
+    def pause_signal(self):
+        signal.pause()

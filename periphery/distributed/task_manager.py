@@ -5,18 +5,25 @@ import requests
 import collections
 
 class TaskManager:
-    def __init__(self, model):
+    def __init__(self, model=None):
         self.model = model
         self.input_requests = {}
         self.outputs = {}
 
-        self.input_names = [x.name for x in self.model.get_inputs()]
+        if model is None:
+            self.input_names = []
+        else:
+            self.input_names = [x.name for x in self.model.get_inputs()]
 
         self.children = []
         self.child_output_mappings = collections.defaultdict(list)
 
     def clear_model(self):
         self.model = None
+
+    def set_model(self, model):
+        self.model = model
+        self.input_names = [x.name for x in self.model.get_inputs()]
 
     def clear_children(self):
         self.children = []

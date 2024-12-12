@@ -10,6 +10,7 @@ class Args:
         parser.add_argument("--ip", type=str, default="127.0.0.1")
         parser.add_argument("--port", type=int, default=29500)
         parser.add_argument("--master", action="store_true")
+        parser.add_argument("--num_shards", type=int, default=1)
 
         args = parser.parse_args()
 
@@ -19,3 +20,4 @@ class Args:
         self.port = args.port
         self.master = args.master or (self.master_ip == self.ip and self.master_port == self.port)
         self.model_path = args.model_path
+        self.num_shards = args.num_shards
