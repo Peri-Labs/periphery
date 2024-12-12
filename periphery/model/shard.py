@@ -2,7 +2,7 @@ from onnx import helper
 import onnx
 
 from periphery.model.model import PeriModel
-from periphery.utils.dag import dag
+import periphery.utils.dag as dag
 
 def get_partitions(model, n_shards): 
     """
@@ -47,16 +47,16 @@ def infer_topology(shard_inputs, shard_outputs):
     input_mapping = {}
     output_mapping = {}
 
-    for shard_no, input_names in shard_inputs.items():
+    for shard_no, input_names in enumerate(shard_inputs):
         for input_name in input_names:
             input_mapping[input_name] = shard_no
 
-    for shard_no, output_names in shard_outputs.items():
+    for shard_no, output_names in enumerate(shard_outputs):
         for output_name in output_names:
             output_mapping[output_name] = shard_no
 
     for shard_no, shard in enumerate(shard_inputs):
-        for output in shard_outputs[shard]:
+        for output in list(shard_outputs[shard_no]):
             if output in input_mapping:
                 next_node = nodes[input_mapping[output]]
                 nodes[shard_no].add_connection(output, next_node)

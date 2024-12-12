@@ -59,7 +59,7 @@ class Server:
         if len(submodels) == 0:
             raise Exception("No submodels included.")
         
-        self.master_url = self.node.get_url()
+        self.master_url = self.node.get_url(self.protocol)
         
         model_stack = shard_graph.get_parent_nodes()
         model_set = set(model_stack)
