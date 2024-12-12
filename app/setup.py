@@ -17,6 +17,7 @@ def wait_for_network(server, args):
 
 def shard_and_distribute_model(server, args):
     if not args.master:
+        server.task_manager.model = PeriModel(args.model_path)
         return
 
     model = PeriModel(args.model_path)
@@ -25,7 +26,7 @@ def shard_and_distribute_model(server, args):
     shard_dir = os.path.join(model_dir, "shards")
     pathlib.Path(shard_dir).mkdir(parents=True, exist_ok=True)
 
-    shard_paths = [os.path.join(shard_dir, f"shard_{i}") for i in range(args.num_shards)]
+    shard_paths = [os.path.join(shard_dir, f"shard_{i}.onnx") for i in range(args.num_shards)]
 
     shard_graph = shard.shard_onnx_model(model, args.num_shards, shard_paths)
     

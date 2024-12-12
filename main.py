@@ -12,14 +12,13 @@ if __name__ == "__main__":
     args = peri_args.Args()
 
     node = Node(args.ip, args.port)
-    server = Server(node)
+    server = Server(node, protocol="http")
     
     server.run(host=args.ip, port=args.port)
 
     peri_setup.wait_for_network(server, args)
     peri_setup.shard_and_distribute_model(server, args)
 
-    print("Main thread is still running...")
     try:
         server.pause_signal()
     except KeyboardInterrupt:

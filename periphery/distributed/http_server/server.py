@@ -76,7 +76,7 @@ class Server:
         while len(model_stack) > 0:
             model_id = model_stack.pop()
             model_set.remove(model_id)
-            new_models = [x for x in shard_graph.nodes[model_id].connection_set if x not in model_set]
+            new_models = [x.index for x in shard_graph.nodes[model_id].connection_set if x not in model_set]
             model_stack += new_models
             model_set = model_set.union(set(new_models))
             
@@ -89,17 +89,19 @@ class Server:
                 assigned_nodes[model_id] = next_node
                 
                 url = f"{next_node}/model_assign"
-                requests.post(url, files={"file": submodels[model_id].path})
+                with open(submodels[model_id].path, "rb") as file:
+                    print(f"sending {submodels[model_id].path}")
+                    requests.post(url, files={"file": (submodels[model_id].path, file, "application/octet-stream")})
         
         # update each node with their children, including the proper inputs
         for connection in shard_graph.nodes[own_model_id].connection_set:
             outputs = shard_graph.nodes[own_model_id].connection_labels[connection]
 
-            self.task_manager.children.append(assigned_nodes[connection])
-            self.task_manager.child_output_mappings[assigned_nodes[connection]] += outputs
+            self.task_manager.children.append(assigned_nodes[connection.index])
+            self.task_manager.child_output_mappings[assigned_nodes[connection.index]] += outputs
             
         for node_ip, model_id in assigned_models.items():
-            for connection in shard_graph[model_id].connection_set:
+            for connection in shard_graph.nodes[model_id].connection_set:
                 outputs = shard_graph.nodes[model_id].connection_labels[connection]
                 url = f"{next_node}/child_assign"
                 requests.post(url, {"outputs": outputs, "host_ip": node_ip})

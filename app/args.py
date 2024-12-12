@@ -6,7 +6,7 @@ class Args:
 
         parser.add_argument("--master_ip", type=str, default="127.0.0.1")
         parser.add_argument("--master_port", type=int, default=29500)
-        parser.add_argument("--model_path", default="shards/", type=str, help=".onnx model file path. This may be empty if this is not the master node.")
+        parser.add_argument("--model_path", default="shards/current_shard.onnx", type=str, help=".onnx model file path. This may be empty if this is not the master node.")
         parser.add_argument("--ip", type=str, default="127.0.0.1")
         parser.add_argument("--port", type=int, default=29500)
         parser.add_argument("--master", action="store_true")
