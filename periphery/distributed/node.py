@@ -12,6 +12,6 @@ class Node:
 
     def get_url(self, protocol):
         if protocol == "https":
-            return f"https://{host_ip}:{host_port}"
+            return f"https://{self.host_ip}:{self.host_port}"
 
         raise Exception(f"Protocol {protocol} not supported")

@@ -1,7 +1,11 @@
 
 
-async def wait_for_network(server, args):
+def wait_for_network(server, args):
     if args.master:
-        await server.wait_for_nodes(args.num_shards)
+        server.wait_for_nodes(args.num_shards)
     else:
-        await server.wait_for_master()
+        master_url = f"http://{args.master_ip}:{args.master_port}"
+        server.wait_for_master(master_url)
+        server.register_self(master_url)
+
+    print("Finished setup, server is live...")

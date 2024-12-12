@@ -10,6 +10,7 @@ import io
 import os
 import signal
 import psutil
+import time
 
 class Server:
     def __init__(self, node, protocol="https"):
@@ -35,9 +36,22 @@ class Server:
         return n_nodes
 
     def wait_for_nodes(self, target_world_size):
-        while not self.world_size() < target_world_size:
-            self.registration_condition.wait()
+        print(f"Waiting on nodes... 1/{target_world_size}")
+        while self.world_size() < target_world_size:
+            with self.registration_condition:
+                self.registration_condition.wait()
+            print(f"{self.world_size()}/{target_world_size}")
+    
+    def wait_for_master(self, master_url):
+        print("Waiting on master node...")
+        self.master_url = master_url
 
+        while True:
+            response = requests.get(f"{master_url}/")
+            if response.status_code == 200:
+                return True
+
+            time.sleep(1)
 
     def assign_shards(self, submodels, shard_graph):
         if len(submodels) > self.world_size():
@@ -93,7 +107,7 @@ class Server:
     def register_self(self, master_url):
         url = f"{master_url}/register_node"
         self.master_url = master_url
-        requests.post(url, {"ip": self.node.get_url(self.protocol)})
+        requests.post(url, json={"ip": self.node.get_url(self.protocol)})
 
     def add_routes(self):
         @self.app.get("/")
@@ -133,7 +147,8 @@ class Server:
                 raise HTTPException(status_code=400, detail=f"Field 'ip' missing")
 
             self.registered_nodes.append(node_address)
-            self.registration_condition.notify()
+            with self.registration_condition:
+                self.registration_condition.notify()
 
             return {"message": "Node registered successfully"}
 

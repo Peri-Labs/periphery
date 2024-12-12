@@ -6,7 +6,7 @@ class Args:
 
         parser.add_argument("--master_ip", type=str, default="127.0.0.1")
         parser.add_argument("--master_port", type=int, default=29500)
-        parser.add_argument("--model_path", default=None, type=str, required=True, help="Directory containing .onnx model files. This may be empty if this is not the master node.")
+        parser.add_argument("--model_path", default="shards/", type=str, help=".onnx model file path. This may be empty if this is not the master node.")
         parser.add_argument("--ip", type=str, default="127.0.0.1")
         parser.add_argument("--port", type=int, default=29500)
         parser.add_argument("--master", action="store_true")
@@ -21,3 +21,5 @@ class Args:
         self.master = args.master or (self.master_ip == self.ip and self.master_port == self.port)
         self.model_path = args.model_path
         self.num_shards = args.num_shards
+
+        print(f"num shards: {self.num_shards}, {args.num_shards}")

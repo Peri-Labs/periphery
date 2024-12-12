@@ -14,9 +14,9 @@ if __name__ == "__main__":
     node = Node(args.ip, args.port)
     server = Server(node)
     
-    server.run(host=args.master_ip, port=args.master_port)
+    server.run(host=args.ip, port=args.port)
 
-    peri_setup.wait_for_network(server, args.num_shards)
+    peri_setup.wait_for_network(server, args)
 
     print("Main thread is still running...")
     try:
