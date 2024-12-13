@@ -25,7 +25,7 @@ def send_for_inference(domain, port, infer_id, input_dict):
 
 def get_inference_result(domain, port, infer_id):
     while True:
-        url = f"http://{domain}:{port}/output/{infer_id}"
+        url = f"http://{domain}:{port}/final_output/{infer_id}"
 
         response = requests.get(url)
 

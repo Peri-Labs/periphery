@@ -12,6 +12,8 @@ import signal
 import psutil
 import time
 
+from periphery.orchestration.simple_orchestrator import SimpleOrchestrator
+
 class Server:
     def __init__(self, node, protocol="https"):
         # Initialize the FastAPI app and the queue
@@ -24,6 +26,7 @@ class Server:
         self.registration_condition = threading.Condition()
 
         self.master_url = None
+        self.is_master = False
 
         # Register routes
         self.add_routes()
@@ -45,6 +48,8 @@ class Server:
     def wait_for_master(self, master_url):
         print("Waiting on master node...")
         self.master_url = master_url
+        self.task_manager.master_url = master_url
+        self.is_master = False
 
         while True:
             response = requests.get(f"{master_url}/")
@@ -60,38 +65,22 @@ class Server:
             raise Exception("No submodels included.")
         
         self.master_url = self.node.get_url(self.protocol)
-        
-        model_stack = shard_graph.get_parent_nodes()
-        model_set = set(model_stack)
-        node_stack = [x for x in self.registered_nodes]
+        self.is_master = True
 
         self.task_manager.clear_model()
         self.task_manager.clear_children()
 
-        own_model_id = None
-        assigned_models = {}
-        assigned_nodes = {}
+        orchestrator = SimpleOrchestrator(submodels, shard_graph, self.registered_nodes)
 
-        # assign each submodel to each node, including the master node
-        while len(model_stack) > 0:
-            model_id = model_stack.pop()
-            model_set.remove(model_id)
-            new_models = [x.index for x in shard_graph.nodes[model_id].connection_set if x not in model_set]
-            model_stack += new_models
-            model_set = model_set.union(set(new_models))
-            
-            if own_model_id is None:
-                own_model_id = model_id
-                self.task_manager.model = submodels[model_id]
-            else:
-                next_node = node_stack.pop()
-                assigned_models[next_node] = model_id
-                assigned_nodes[model_id] = next_node
-                
-                url = f"{next_node}/model_assign"
-                with open(submodels[model_id].path, "rb") as file:
-                    print(f"sending {submodels[model_id].path}")
-                    requests.post(url, files={"file": (submodels[model_id].path, file, "application/octet-stream")})
+        own_model_id, assigned_models, assigned_nodes = orchestrator.get_assignments()
+
+        self.task_manager.model = submodels[own_model_id]
+
+        for node, model_id in assigned_models.items():
+            url = f"{node}/model_assign"
+            with open(submodels[model_id].path, "rb") as file:
+                print(f"sending {submodels[model_id].path}")
+                requests.post(url, files={"file": (submodels[model_id].path, file, "application/octet-stream")})
         
         # update each node with their children, including the proper inputs
         for connection in shard_graph.nodes[own_model_id].connection_set:
@@ -197,6 +186,62 @@ class Server:
                         )
             except Exception as e:
                 print(f"found exception... {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Request failed (Internal Server Error)")
+
+
+        @self.app.get("/final_output/{infer_id}")
+        async def final_output(infer_id: int):
+            if not self.is_master:
+                # If we aren't the master node, forward it on to the master node as apppropriate.
+                url = f"{self.master_url}/final_output/{infer_id}"
+
+                try:
+                    response = requests.get(url, stream=True)
+                    if response.status_code == 202:
+                        raise HTTPException(status_code=202, detail=response.json().get("detail"))
+                    elif response.status_code == 500:
+                        raise HTTPException(status_code=500, detail="Request failed (Internal Server Error)")
+                    elif response.status_code == 200:
+                        # Pass through the response
+                        headers = {
+                            "Content-Disposition": response.headers.get("Content-Disposition", ""),
+                            "Content-Type": response.headers.get("Content-Type", "application/octet-stream")
+                        }
+                        return StreamingResponse(BytesIO(response.content), headers=headers)
+                    else:
+                        raise HTTPException(status_code=response.status_code, detail="Unexpected response from master node")
+                except requests.exceptions.RequestException as e:
+                    print(f"Error forwarding request to master node: {e}")
+                    raise HTTPException(status_code=500, detail="Failed to forward request to master node")
+
+            if infer_id not in self.task_manager.final_outputs:
+                raise HTTPException(status_code=202, detail=f"Inference id {infer_id} is still processing...")
+
+            try:
+                buffer, output_filename = self.task_manager.get_final_output_buffer(infer_id)
+                return StreamingResponse(
+                        buffer,
+                        media_type="application/octet-stream",
+                        headers={
+                            "Content-Disposition": f"attachment; filename={output_filename}"
+                            }
+                        )
+            except Exception as e:
+                print(f"found exception... {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Request failed (Internal Server Error)")
+
+        @self.app.post("/final_output/{infer_id}")
+        async def submit_input(infer_id: int, file: UploadFile = File(...)):
+            try:
+                contents = await file.read()
+
+                flo = io.BytesIO(contents)
+
+                with np.load(flo) as np_contents:
+                    data = {k: np_contents[k] for k in np_contents}
+
+                self.task_manager.final_outputs[infer_id] = data
+            except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Request failed (Internal Server Error)")
 
     def run(self, host, port):
