@@ -1,0 +1,1 @@
+python3 main.py --model_path pretrained_models/MNIST/mnist_cnn.onnx --num_shards 2 --master

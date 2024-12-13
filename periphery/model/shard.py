@@ -87,6 +87,7 @@ def shard_onnx_model(peri_model, n_shards, output_paths):
 
     partitions = get_partitions(model, n_shards)
 
+
     all_inputs = []
     all_outputs = []
 

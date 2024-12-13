@@ -58,15 +58,15 @@ class TaskManager:
 
     def send_to_children(self, infer_id, children, child_output_mappings):
         for child, outputs in child_output_mappings.items():
-            url = f"{children[child]}/submit_input/{infer_id}"
+            url = f"{child}/submit_input/{infer_id}"
             file = self.get_selected_buffer(infer_id, outputs, child)
             requests.post(url, files={"file": file})
     
-    def get_selected_buffer(self, input_id, output_names, output_id):
+    def get_selected_buffer(self, infer_id, output_names, output_id):
         buffer = BytesIO()
         selected_output = {k: v for k,v in self.outputs[infer_id].items() if k in output_names}
 
         np.savez(buffer, **selected_output)
         buffer.seek(0)
 
-        return buffer, f"output_{infer_id}_{output_id}.npz"
+        return f"output_{infer_id}_{output_id}.npz", buffer, "application/octet-stream"

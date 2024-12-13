@@ -1,3 +1,5 @@
 pretrained_models/*
 data/*
 shards/
+np_data/
+mnist_producer.py

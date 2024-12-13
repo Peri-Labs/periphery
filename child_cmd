@@ -1,0 +1,1 @@
+python3 main.py --master_ip 127.0.0.1 --master_port 29500 --ip 127.0.0.1 --port 29501
