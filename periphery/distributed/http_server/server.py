@@ -28,6 +28,8 @@ class Server:
         self.master_url = None
         self.is_master = False
 
+        self.parent_nodes = {}
+
         # Register routes
         self.add_routes()
 
@@ -70,9 +72,18 @@ class Server:
         self.task_manager.clear_model()
         self.task_manager.clear_children()
 
+        parent_models = shard_graph.get_parent_nodes()
+
         orchestrator = SimpleOrchestrator(submodels, shard_graph, self.registered_nodes)
 
         own_model_id, assigned_models, assigned_nodes = orchestrator.get_assignments()
+
+        assigned_nodes[own_model_id] = self.master_url
+
+        #self.parent_nodes = [self.master_url] + [assigned_nodes[x] for x in parent_models if x in assigned_nodes]
+        self.parent_nodes = {
+                assigned_nodes[x]: list(shard_graph.nodes[x].external_inputs) for x in parent_models
+                }
 
         self.task_manager.model = submodels[own_model_id]
 
@@ -243,6 +254,14 @@ class Server:
                 self.task_manager.final_outputs[infer_id] = data
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Request failed (Internal Server Error)")
+
+        @self.app.get("/parents")
+        async def get_parents():
+            try:
+                return {"parents": self.parent_nodes}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Request failed (Internal Server Error)")
+            
 
     def run(self, host, port):
         # Start the FastAPI server

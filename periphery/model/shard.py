@@ -73,4 +73,4 @@ def shard_onnx_model(peri_model, n_shards, output_paths):
         # Save the sharded model
         onnx.save(shard_model, output_paths[shard_no])
 
-    return infer_topology(all_inputs, all_outputs)
+    return infer_topology(all_inputs, all_outputs, set(initializers.keys()))

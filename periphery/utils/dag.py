@@ -9,6 +9,8 @@ class Node:
         self.connection_set = set()
         self.index = index
 
+        self.external_inputs = set()
+
     def add_connection(self, label, nxt):
         self.connection_labels[nxt].add(label)
         self.label_to_connection[label] = nxt
