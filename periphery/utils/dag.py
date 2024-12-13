@@ -1,5 +1,7 @@
 import collections
 
+import numpy as np
+
 class Node:
     def __init__(self, index=None):
         self.connection_labels = collections.defaultdict(set)
@@ -33,3 +35,13 @@ class DirectedGraph:
             non_parents = non_parents.union(node.connection_set)
 
         return [i for i, x in enumerate(self.nodes)  if x not in non_parents]
+
+    def undirected_adjacency_matrix(self):
+        n_nodes = len(self.nodes)
+        adj = np.zeros((n_nodes, n_nodes))
+        
+        for node_idx, node in enumerate(self.nodes):
+            for next_node in node.connection_set:
+                adj[node_idx, next_node.index] = 1
+                adj[next_node.index, node_idx] = 1
+        return adj

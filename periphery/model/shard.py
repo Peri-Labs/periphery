@@ -4,65 +4,8 @@ import onnx
 from periphery.model.model import PeriModel
 import periphery.utils.dag as dag
 
-def get_partitions(model, n_shards): 
-    """
-    Find a partition of the model layers into n_shards
-
-    Parameters:
-    - model: The ONNX ModelProto to shard
-    - n_shards: Number of shards to split the model into.
-    """
-    nodes = model.graph.node
-    total_nodes = len(nodes)
-
-    shard_size = total_nodes // n_shards
-
-    partitions = []
-
-    for shard_no in range(n_shards):
-        partitions.append(nodes[(shard_no*shard_size):((shard_no+1)*shard_size)])
-
-    if shard_size * n_shards < total_nodes:
-        shortfall = total_nodes - (shard_size*n_shards)
-        partitions[-1] += nodes[(total_nodes-shortfall):]
-
-    return partitions
-
-def infer_topology(shard_inputs, shard_outputs):
-    """
-    Return a DAG representing the connections between shards
-
-    Parameters:
-    - shard_inputs: A list of inputs into each submodel
-    - shard_outputs: A list of outputs into each submodel
-    """
-    graph = dag.DirectedGraph()
-
-    n_shards = len(shard_inputs)
-
-    nodes = [dag.Node() for i in range(n_shards)]
-
-    graph.add_nodes(nodes)
-    
-    input_mapping = {}
-    output_mapping = {}
-
-    for shard_no, input_names in enumerate(shard_inputs):
-        for input_name in input_names:
-            input_mapping[input_name] = shard_no
-
-    for shard_no, output_names in enumerate(shard_outputs):
-        for output_name in output_names:
-            output_mapping[output_name] = shard_no
-
-    for shard_no, shard in enumerate(shard_inputs):
-        for output in list(shard_outputs[shard_no]):
-            if output in input_mapping:
-                next_node = nodes[input_mapping[output]]
-                nodes[shard_no].add_connection(output, next_node)
-    
-    return graph
-
+from periphery.utils.partition import get_partitions_spectral
+from periphery.utils.topology import infer_topology
 
 def shard_onnx_model(peri_model, n_shards, output_paths):
     """
@@ -85,7 +28,7 @@ def shard_onnx_model(peri_model, n_shards, output_paths):
 
     initializers = {init.name: init for init in graph.initializer}
 
-    partitions = get_partitions(model, n_shards)
+    partitions = get_partitions_spectral(model.graph.node, n_shards)
 
 
     all_inputs = []
