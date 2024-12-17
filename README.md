@@ -1,4 +1,4 @@
-![Periphery Logo](periphery/periphery_logo.png)
+![Periphery Logo](/periphery_logo.png)
 
 # Periphery
 
