@@ -122,7 +122,7 @@ Incorporate tokenizers and LLM-specific preprocessing for text-based generative 
 Periphery is under rapid development. Expect instability and breaking changes as the project evolves.
 
 ### Contributing
-- **Report bugs**, request features, or suggest improvements via [GitHub Issues](#).
+- **Report bugs**, request features, or suggest improvements via [GitHub Issues](https://github.com/Peri-Labs/periphery/issues). 
 - Submit **Pull Requests** to help improve code quality, documentation, and features.
 
 ### License
