@@ -1,0 +1,14 @@
+# Core dependencies
+numpy
+requests
+scikit-learn
+onnx
+onnxruntime
+torch
+
+# Hugging Face ecosystem
+transformers
+datasets
+
+# Intel Neural Compressor (for ONNX quantization workflows)
+neural-compressor
