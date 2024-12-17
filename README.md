@@ -72,13 +72,13 @@ pip install -r requirements.txt
 
 Below are examples for setting up both a **master node** and a **child node** in a distributed inference setup.
 
-Running the Master Node:
+- Running the Master Node:
 ```bash
 # Master Node
 python main.py --master --model_path /path/to/model.onnx --num_shards 4
 ```
 
-Running the Master Node:
+- Running the Child Node:
 ```bash
 # Child Node
 python main.py --master_ip 192.168.1.100 --master_port 29500 --ip 192.168.1.101 --port 29501
