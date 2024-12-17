@@ -63,7 +63,7 @@
 
 **Setup:**
 ```bash
-git clone https://github.com/your-org/periphery.git
+gh repo clone Peri-Labs/periphery
 cd periphery
 pip install -r requirements.txt
 ```
